@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'cart_model.dart';
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
 import 'order_placed_page.dart'; // Import OrderPlacedPage
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({Key? key}) : super(key: key);
@@ -92,7 +95,7 @@ class CartPage extends StatelessWidget {
                       ),
                       GestureDetector(
                         onTap: () async {
-                          String username = await _showUsernameDialog(context);
+                          String username = await _getUsername();
                           if (username.isNotEmpty) {
                             String orderId = await _sendOrderEmail(context, value, username);
                             Navigator.push(
@@ -142,10 +145,19 @@ class CartPage extends StatelessWidget {
     );
   }
 
+  Future<String> _getUsername() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('username') ?? '';
+  }
+
   Future<String> _sendOrderEmail(BuildContext context, CartModel value, String username) async {
     String orderId = _generateOrderId();
-    String items = value.cartItems.map((item) => '${item[0]} (Qty: ${value.getQuantityAtIndex(value.cartItems.indexOf(item))})').join(', ');
-    String emailBody = 'Order ID: $orderId\nUsername: $username\nItems: $items\nTotal Price: \₹${value.calculateTotal()}';
+    final usersCollection = FirebaseFirestore.instance.collection('users');
+    final querySnapshot = await usersCollection.where('username', isEqualTo: username).get();
+    final userDoc = querySnapshot.docs.first;
+    String? flatNumber = userDoc['flatNumber'];
+    String items = value.cartItems.map((item) => '${item[0]} (Qty: ${value.getQuantityAtIndex(value.cartItems.indexOf(item))})').join('\n ');
+    String emailBody = 'Order ID: $orderId\n\nUsername: $username\n\nFlat Number: $flatNumber\n\nItems: \n$items\n\nTotal Price: \₹${value.calculateTotal()}';
 
     // Set up the SMTP server
     String usernameEmail = 'dheemanth.g.athreya@gmail.com'; // Your email
@@ -168,33 +180,6 @@ class CartPage extends StatelessWidget {
       print('Message not sent. $e');
       return orderId; // Return the order ID even if the email fails to send
     }
-  }
-
-  Future<String> _showUsernameDialog(BuildContext context) async {
-    String username = '';
-    await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        TextEditingController controller = TextEditingController();
-        return AlertDialog(
-          title: Text('Enter your username'),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(hintText: "Username"),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                username = controller.text;
-                Navigator.of(context).pop();
-              },
-              child: Text('Submit'),
-            ),
-          ],
-        );
-      },
-    );
-    return username;
   }
 
   String _generateOrderId() {

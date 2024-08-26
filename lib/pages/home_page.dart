@@ -1,22 +1,44 @@
-import 'user_details.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'grocery_item_title.dart';
 import 'cart_model.dart';
 import 'cart_page.dart';
 import 'categories.dart';
-// import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flash_cart/pages/account_bottom_navigation_bar_item.dart' as AccountItem;
+import 'user_details.dart';
+import 'login_page.dart';
 
 class HomePage extends StatefulWidget {
-  final String? address;
+  final String? address; // Add this line to accept the address
 
-  const HomePage({Key? key, this.address}) : super(key: key);
+  HomePage({this.address}); // Modify the constructor to accept address as an optional parameter
+
   @override
-  State<HomePage> createState() => _HomePageState();
+  _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
+  String? _username;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _username = prefs.getString('username') ?? 'User';
+    });
+  }
+
+  Future<void> _logout() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('username');
+    Navigator.pushReplacementNamed(context, '/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -31,7 +53,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         title: Text(
-          widget.address ?? 'Bangalore',
+          'Bangalore',
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey[700],
@@ -39,45 +61,23 @@ class _HomePageState extends State<HomePage> {
         ),
         centerTitle: false,
         actions: [
-          // Padding(
-          //   padding: const EdgeInsets.only(right: 24.0),
-          //   child: Container(
-          //     padding: EdgeInsets.all(16),
-          //     decoration: BoxDecoration(
-          //       color: Colors.grey[200],
-          //       borderRadius: BorderRadius.circular(12),
-          //     ),
-          //     child: Icon(
-          //       Icons.person,
-          //       color: Colors.grey,
-          //     ),
-          //   ),
-          // ),
+          IconButton(
+            icon: Icon(Icons.logout),
+            color: Colors.grey[700],
+            onPressed: _logout,
+          ),
         ],
       ),
-      // floatingActionButton: FloatingActionButton(
-      //   backgroundColor: Colors.white54,
-      //   onPressed: () => Navigator.push(
-      //     context,
-      //     MaterialPageRoute(
-      //       builder: (context) => CartPage(),
-      //     ),
-      //   ),
-      //   child: const Icon(Icons.shopping_cart),
-      // ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 48),
-
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24.0),
-              child: Text('Good morning,'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Text('Hello $_username!'),
             ),
-
             const SizedBox(height: 4),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Text(
@@ -88,16 +88,12 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 24),
-
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.0),
               child: Divider(),
             ),
-
             const SizedBox(height: 24),
-
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.0),
               child: Text(
@@ -107,7 +103,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-
             Consumer<CartModel>(
               builder: (context, value, child) {
                 return GridView.builder(
@@ -151,7 +146,7 @@ class _HomePageState extends State<HomePage> {
             label: 'Cart',
           ),
           BottomNavigationBarItem(
-            icon: AccountItem.AccountBottomNavigationBarItem(), // Use AccountBottomNavigationBarItem
+            icon: Icon(Icons.person),
             label: 'Account',
           ),
         ],
@@ -160,14 +155,14 @@ class _HomePageState extends State<HomePage> {
         onTap: (int index) {
           switch (index) {
             case 0:
-            // Handle home navigation
               break;
             case 1:
-            // Handle explore navigation
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => Categories()),
-              );
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => HomePage(), // Remove the address parameter
+  ),
+);
               break;
             case 2:
               Navigator.push(
@@ -175,17 +170,10 @@ class _HomePageState extends State<HomePage> {
                 MaterialPageRoute(builder: (context) => CartPage()),
               );
               break;
-            case 2:
-            // Handle account navigation
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => UserDetails()), // Navigate to CartPage
-              );
-              break;
             case 3:
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => UserDetails()), // Navigate to UserDetails
+                MaterialPageRoute(builder: (context) => UserDetailsPage()),
               );
               break;
           }

@@ -20,7 +20,8 @@ import 'pages/vege_model.dart';
 import 'package:provider/provider.dart';
 // import 'pages/splash_screen.dart';
 import 'pages/user_details.dart';
-
+import 'pages/login_page.dart';
+import 'pages/signup_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -44,7 +45,12 @@ class MyApp extends StatelessWidget {
         child: MaterialApp(
         title: 'Flutter OTP Verification',
         debugShowCheckedModeBanner: false,
-        home: Splash(),
+      home: LoginPage(),  // Start with the LoginPage
+      routes: {
+        '/home': (context) => HomePage(),
+        '/signup': (context) => SignupPage(),
+        '/login': (context) => LoginPage(),
+      },
         // home: PaymentInit(
         //   passedVals: {},
         // ),

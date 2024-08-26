@@ -155,7 +155,7 @@ class Vegetables extends StatelessWidget {
               // Handle account navigation
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => UserDetails()), // Navigate to CartPage
+                  MaterialPageRoute(builder: (context) => UserDetailsPage()), // Navigate to CartPage
                 );
                 break;
             }
