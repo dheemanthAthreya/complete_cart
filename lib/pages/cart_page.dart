@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'cart_model.dart';
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
 import 'order_placed_page.dart'; // Import OrderPlacedPage
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({Key? key}) : super(key: key);
@@ -95,16 +93,7 @@ class CartPage extends StatelessWidget {
                       ),
                       GestureDetector(
                         onTap: () async {
-                          String username = await _getUsername();
-                          if (username.isNotEmpty) {
-                            String orderId = await _sendOrderEmail(context, value, username);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => OrderPlacedPage(orderId: orderId),
-                              ),
-                            );
-                          }
+                          await _validateAndPlaceOrder(context, value);
                         },
                         child: Container(
                           decoration: BoxDecoration(
@@ -145,19 +134,107 @@ class CartPage extends StatelessWidget {
     );
   }
 
-  Future<String> _getUsername() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getString('username') ?? '';
+  Future<Map<String, int>> _fetchItemQuantities() async {
+    final itemQuantities = <String, int>{};
+    final querySnapshot = await FirebaseFirestore.instance.collection('items').get();
+
+    for (var doc in querySnapshot.docs) {
+      final data = doc.data();
+      final itemName = data['itemName'] as String;
+      final quantity = data['quantity'] as int;
+      itemQuantities[itemName] = quantity;
+    }
+
+    return itemQuantities;
   }
 
-  Future<String> _sendOrderEmail(BuildContext context, CartModel value, String username) async {
+  Future<void> _validateAndPlaceOrder(BuildContext context, CartModel value) async {
+    final itemQuantities = await _fetchItemQuantities();
+    final itemQuantitiesExceeded = <String, int>{};
+
+    // Check for quantity exceedances
+    for (var item in value.cartItems) {
+      final itemName = item[0];
+      final requestedQuantity = value.getQuantityAtIndex(value.cartItems.indexOf(item));
+      final availableQuantity = itemQuantities[itemName] ?? 0;
+
+      if (requestedQuantity > availableQuantity) {
+        itemQuantitiesExceeded[itemName] = requestedQuantity - availableQuantity;
+      }
+    }
+
+    if (itemQuantitiesExceeded.isNotEmpty) {
+      _showQuantityExceededDialog(context, itemQuantitiesExceeded);
+    } else {
+      // Proceed with placing the order
+      String orderId = await _sendOrderEmail(context, value);
+      await _updateFirestoreQuantities(value);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OrderPlacedPage(orderId: orderId),
+        ),
+      );
+    }
+  }
+
+  void _showQuantityExceededDialog(BuildContext context, Map<String, int> itemQuantitiesExceeded) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Quantity Exceeded'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: itemQuantitiesExceeded.entries.map((entry) {
+              return Text('${entry.key}: Exceeds by ${entry.value}');
+            }).toList(),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _updateFirestoreQuantities(CartModel value) async {
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (var item in value.cartItems) {
+      final itemName = item[0];
+      final requestedQuantity = value.getQuantityAtIndex(value.cartItems.indexOf(item));
+
+      // Fetch the document reference
+      final querySnapshot = await FirebaseFirestore.instance.collection('items')
+          .where('itemName', isEqualTo: itemName)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final itemRef = doc.reference;
+
+        final currentQuantity = doc.data()['quantity'] as int;
+        final newQuantity = currentQuantity - requestedQuantity;
+
+        if (newQuantity >= 0) {
+          batch.update(itemRef, {'quantity': newQuantity});
+        }
+      }
+    }
+
+    await batch.commit();
+  }
+
+  Future<String> _sendOrderEmail(BuildContext context, CartModel value) async {
     String orderId = _generateOrderId();
-    final usersCollection = FirebaseFirestore.instance.collection('users');
-    final querySnapshot = await usersCollection.where('username', isEqualTo: username).get();
-    final userDoc = querySnapshot.docs.first;
-    String? flatNumber = userDoc['flatNumber'];
-    String items = value.cartItems.map((item) => '${item[0]} (Qty: ${value.getQuantityAtIndex(value.cartItems.indexOf(item))})').join('\n ');
-    String emailBody = 'Order ID: $orderId\n\nUsername: $username\n\nFlat Number: $flatNumber\n\nItems: \n$items\n\nTotal Price: \₹${value.calculateTotal()}';
+    String items = value.cartItems.map((item) => '${item[0]} (Qty: ${value.getQuantityAtIndex(value.cartItems.indexOf(item))})').join(', ');
+    String emailBody = 'Order ID: $orderId\nUsername: <username>\nItems: $items\nTotal Price: \₹${value.calculateTotal()}';
 
     // Set up the SMTP server
     String usernameEmail = 'dheemanth.g.athreya@gmail.com'; // Your email

@@ -32,7 +32,8 @@ class _SignupPageState extends State<SignupPage> {
       await usersCollection.add({
         'username': username,
         'password': password,
-        'flatNumber': flatNumber, // Store Flat Number in Firestore
+        'flatNumber': flatNumber,
+         // Store Flat Number in Firestore
       });
 
       // Save the username in shared preferences

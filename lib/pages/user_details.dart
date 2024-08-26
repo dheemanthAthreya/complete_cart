@@ -25,7 +25,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
     String? username = prefs.getString('username');
     final usersCollection = FirebaseFirestore.instance.collection('users');
     final querySnapshot = await usersCollection.where('username', isEqualTo: username).get();
-    final userDoc = querySnapshot.docs.first;
+          final userDoc = querySnapshot.docs.first;
     String? flatNumber = userDoc['flatNumber'];
     print('Loaded username: $username');
     print('Loaded flat number: $flatNumber');
