@@ -5,6 +5,7 @@ import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
 import 'order_placed_page.dart'; // Import OrderPlacedPage
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({Key? key}) : super(key: key);
@@ -169,6 +170,8 @@ class CartPage extends StatelessWidget {
       // Proceed with placing the order
       String orderId = await _sendOrderEmail(context, value);
       await _updateFirestoreQuantities(value);
+      await _updateFirestoreOrderHistory(orderId, value); // Update order history
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -229,6 +232,41 @@ class CartPage extends StatelessWidget {
     }
 
     await batch.commit();
+  }
+
+  Future<void> _updateFirestoreOrderHistory(String orderId, CartModel value) async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString('username');
+
+    if (username != null) {
+      final orders = value.cartItems.map((item) {
+        final itemName = item[0];
+        final quantity = value.getQuantityAtIndex(value.cartItems.indexOf(item));
+        final price = double.parse(item[1].toString());
+        return {
+          'itemName': itemName,
+          'quantity': quantity,
+          'price': price,
+        };
+      }).toList();
+
+      final order = {
+        'orderId': orderId,
+        'items': orders,
+        'timestamp': Timestamp.now(),
+        'totalPrice': value.calculateTotal(),
+      };
+
+      await FirebaseFirestore.instance.collection('users')
+        .where('username', isEqualTo: username)
+        .get()
+        .then((snapshot) {
+          final userDoc = snapshot.docs.first.reference;
+          userDoc.update({
+            'orderHistory': FieldValue.arrayUnion([order]),
+          });
+        });
+    }
   }
 
   Future<String> _sendOrderEmail(BuildContext context, CartModel value) async {
